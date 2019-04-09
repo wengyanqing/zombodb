@@ -43,6 +43,8 @@
 #include "zdbseqscan.h"
 #include "zdb_interface.h"
 
+#include "cdb/cdbvars.h"
+
 /*
  * an Elasticsearch 2.x limit for the number of docs that can be returned by a SearchRequest.
  * ZDB issues SearchRequests during indexing and vacuum so we need to control it here.
@@ -1070,7 +1072,7 @@ static void appendBatchInsertData(ZDBIndexDescriptor *indexDescriptor, ItemPoint
 	unsigned int b64_len;
 
     /* the data */
-    appendStringInfo(bulk, "{\"index\":{\"_id\":\"%d-%d\"}}\n", ItemPointerGetBlockNumber(ht_ctid), ItemPointerGetOffsetNumber(ht_ctid));
+    appendStringInfo(bulk, "{\"index\":{\"_id\":\"%d-%d-%d\"}}\n", GpIdentity.segindex, ItemPointerGetBlockNumber(ht_ctid), ItemPointerGetOffsetNumber(ht_ctid));
 
     if (indexDescriptor->hasJson)
         appendBinaryStringInfoAndStripLineBreaks(bulk, VARDATA(value), VARSIZE(value) - VARHDRSZ);
@@ -1087,6 +1089,9 @@ static void appendBatchInsertData(ZDBIndexDescriptor *indexDescriptor, ItemPoint
 
 	/* and the sequence number */
 	appendStringInfo(bulk, ",\"_zdb_seq\":%ld", sequence);
+
+	/* and segment_id */
+	appendStringInfo(bulk, ",\"_zdb_segid\":%d", GpIdentity.segindex);
 
     /* and the block number as its own field */
     appendStringInfo(bulk, ",\"_zdb_blockno\":%d", ItemPointerGetBlockNumber(ht_ctid));

@@ -56,6 +56,7 @@
 #include "zdbam.h"
 #include "zdbseqscan.h"
 
+#include "cdb/cdbvars.h"
 
 PG_FUNCTION_INFO_V1(zdbbuild);
 PG_FUNCTION_INFO_V1(zdbbuildempty);
@@ -467,23 +468,33 @@ Datum zdbbuild(PG_FUNCTION_ARGS) {
 
     if (!buildstate.desc->isShadow) {
         /* drop the existing index */
-        buildstate.desc->implementation->dropIndex(buildstate.desc);
+		if (Gp_role == GP_ROLE_DISPATCH)
+		{ 
+        	buildstate.desc->implementation->dropIndex(buildstate.desc);
+		}
 
-        /* create a new, empty index */
-        mappingDatum    = make_es_mapping(buildstate.desc, heapRel->rd_id, heapRel->rd_att, false);
-        propertiesDatum = DirectFunctionCall2(json_object_field, mappingDatum, PROPERTIES);
-        properties      = TextDatumGetCString(propertiesDatum);
+		/* create a new, empty index */
+		mappingDatum    = make_es_mapping(buildstate.desc, heapRel->rd_id, heapRel->rd_att, false);
+		propertiesDatum = DirectFunctionCall2(json_object_field, mappingDatum, PROPERTIES);
+		properties      = TextDatumGetCString(propertiesDatum);
 
-        buildstate.desc->implementation->createNewIndex(buildstate.desc, ZDBIndexOptionsGetNumberOfShards(indexRel), properties);
+		if (Gp_role == GP_ROLE_DISPATCH)
+		{
+        	buildstate.desc->implementation->createNewIndex(buildstate.desc, ZDBIndexOptionsGetNumberOfShards(indexRel), properties);
+		}
 
         /* do the heap scan */
-        reltuples = IndexBuildHeapScan(heapRel, indexRel, indexInfo, true, zdbbuildCallback, (void *) &buildstate);
+        //reltuples = IndexBuildHeapScan(heapRel, indexRel, indexInfo, true, zdbbuildCallback, (void *) &buildstate);
+        reltuples = IndexBuildScan(heapRel, indexRel, indexInfo, true, zdbbuildCallback, (void *) &buildstate);
 
         /* signal that the batch inserts have stopped */
         buildstate.desc->implementation->batchInsertFinish(buildstate.desc);
 
         /* reset the settings to reasonable values for production use */
-        buildstate.desc->implementation->finalizeNewIndex(buildstate.desc);
+		if (Gp_role == GP_ROLE_DISPATCH)
+		{ 
+        	buildstate.desc->implementation->finalizeNewIndex(buildstate.desc);
+		}
 
         if (heapRel->rd_rel->relkind != 'm')
         {
@@ -524,14 +535,15 @@ Datum zdbbuild(PG_FUNCTION_ARGS) {
 /*
  * Per-tuple callback from IndexBuildHeapScan
  */
+//static void zdbbuildCallback(Relation indexRel, ItemPointer tupleId, Datum *values, bool *isnull, bool tupleIsAlive, void *state) {
 static void zdbbuildCallback(Relation indexRel, HeapTuple htup, Datum *values, bool *isnull, bool tupleIsAlive, void *state) {
     ZDBBuildState      *buildstate = (ZDBBuildState *) state;
     ZDBIndexDescriptor *desc       = buildstate->desc;
 	TransactionId xmin;
-
+	/*
     if (HeapTupleIsHeapOnly(htup))
         elog(ERROR, "Heap Only Tuple (HOT) found at (%d, %d).  Run VACUUM FULL <tablename>; and reindex", ItemPointerGetBlockNumber(&(htup->t_self)), ItemPointerGetOffsetNumber(&(htup->t_self)));
-
+	*/
 	xmin = HeapTupleHeaderGetXmin(htup->t_data);
 
     desc->implementation->batchInsertRow(desc, &htup->t_self, DatumGetTextP(values[1]), false, NULL, 0, xmin, HeapTupleHeaderGetRawCommandId(htup->t_data), -1);

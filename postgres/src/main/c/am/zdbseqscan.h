@@ -37,6 +37,7 @@ STATIC_IF_INLINE void set_item_pointer(ZDBSearchResponse *data, uint64 index, It
         memcpy(&blkno, data->hits + (index * (sizeof(BlockNumber) + sizeof(OffsetNumber))), sizeof(BlockNumber));
         memcpy(&offno, data->hits + (index * (sizeof(BlockNumber) + sizeof(OffsetNumber)) + sizeof(BlockNumber)), sizeof(OffsetNumber));
     }
+	elog(NOTICE, "blkno:%d offno:%d", blkno, offno);
     ItemPointerSet(target, blkno, offno);
 }
 

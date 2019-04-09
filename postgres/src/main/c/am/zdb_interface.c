@@ -219,6 +219,7 @@ ZDBIndexDescriptor *zdb_alloc_index_descriptor(Relation indexRel) {
     desc->optimizeAfter      = ZDBIndexOptionsGetOptimizeAfter(indexRel);
     desc->defaultRowEstimate = ZDBIndexOptionsGetDefaultRowEstimate(indexRel);
     desc->store              = ZDBIndexOptionsGetStore(indexRel);
+	desc->store				 = true;
     desc->alwaysJoinWithDocValues = ZDBIndexOptionsAlwaysJoinWithDocValues(indexRel);
     if (desc->isShadow) {
         /* but some properties come from the index we're shadowing */
